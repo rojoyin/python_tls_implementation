@@ -17,6 +17,7 @@ class TCPServer:
         # Create socket, bind, and start listening
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.socket.bind((self.host, self.port))
             self.socket.listen(5)
         except Exception as e:
