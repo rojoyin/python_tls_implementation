@@ -46,9 +46,10 @@ class TLSPlaintext(BaseModel):
     MAX_FRAGMENT_LENGTH: int = 2**14
 
     @field_validator('fragment')
-    def validate_fragment(self, v: bytes) -> bytes:
-        if len(v) > self.MAX_FRAGMENT_LENGTH:
-            raise ValueError(f"Fragment length must be less than {self.MAX_FRAGMENT_LENGTH} bytes")
+    @classmethod
+    def validate_fragment(cls, v: bytes) -> bytes:
+        if len(v) > cls.MAX_FRAGMENT_LENGTH:
+            raise ValueError(f"Fragment length must be less than {cls.MAX_FRAGMENT_LENGTH} bytes")
         return v
 
     @classmethod
