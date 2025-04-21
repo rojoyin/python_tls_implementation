@@ -90,3 +90,46 @@ class TLSPlaintext(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+class TLSInnerPlaintext(BaseModel):
+    content: bytes = b''
+    type: ContentType
+    zeros_padding_length: int = 0
+
+    @field_validator('zeros_padding_length')
+    @classmethod
+    def validate_zeros_padding_length(cls, v):
+        if v<0:
+            raise ValueError("Padding length cannot be negative")
+        return v
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> TLSInnerPlaintext:
+        if not data:
+            raise ValueError("Empty data provided to TLSInnerPlaintext.from_bytes")
+
+        for i in range(len(data)-1, -1, -1):
+            if (content_type_byte := data[i]) != 0:
+                try:
+                    content_type = ContentType(content_type_byte)
+                    content = data[:i]
+                    zeros_padding_length = len(data[i+1:])
+                    return cls(
+                        content=content,
+                        type=content_type,
+                        zeros_padding_length=zeros_padding_length
+                    )
+                except ValueError:
+                    continue
+
+        raise ValueError("Invalid TLSInnerPlaintext: no content type found")
+
+    def to_bytes(self) -> bytes:
+        return (
+            self.content +
+            bytes([self.type.value]) +
+            bytes([0] * self.zeros_padding_length)
+        )
+
+    class Config:
+        arbitrary_types_allowed = True
