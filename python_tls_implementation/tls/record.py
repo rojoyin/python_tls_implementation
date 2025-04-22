@@ -134,3 +134,24 @@ class TLSInnerPlaintext(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+class TLSCiphertext(BaseModel):
+    opaque_type: ContentType
+    legacy_record_version: ProtocolVersion = ProtocolVersion.TLS_1_2
+    encrypted_record: bytes = b''
+
+    @property
+    def length(self) -> int:
+        return len(self.encrypted_record)
+
+    MAX_FRAGMENT_LENGTH: int = 2 ** 14 + 256
+
+    @field_validator('encrypted_record')
+    @classmethod
+    def validate_encrypted_record(cls, v):
+        if len(v)>cls.MAX_FRAGMENT_LENGTH:
+            raise ValueError(f"Encrypted record length must be less than {cls.MAX_FRAGMENT_LENGTH} bytes")
+        return v
+
+    class Config:
+        arbitrary_types_allowed = True
