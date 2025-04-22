@@ -153,5 +153,34 @@ class TLSCiphertext(BaseModel):
             raise ValueError(f"Encrypted record length must be less than {cls.MAX_FRAGMENT_LENGTH} bytes")
         return v
 
+    def to_bytes(self) -> bytes:
+        return (
+            bytes([self.opaque_type.value]) +
+            ProtocolVersion.to_bytes(self.legacy_record_version.value) +
+            struct.pack("!H", self.length) +
+            self.encrypted_record
+        )
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> tuple[TLSCiphertext,bytes]:
+        if len(data)<5:
+            raise ValueError("Data too short for TLS ciphertext header")
+
+        opaque_type = ContentType(data[0])
+        version_tuple = (data[1], data[2])
+        version = ProtocolVersion(version_tuple)
+        length = struct.unpack("!H", data[3:5])[0]
+
+        if len(data) < 5+length:
+            raise ValueError(f"Incomplete TLS ciphertext: expected {length} bytes, got {len(data) - 5}")
+
+        encrypted_record = data[5:5+length]
+        remainder = data[5+length:]
+        return cls(
+            opaque_type=opaque_type,
+            legacy_record_version=version,
+            encrypted_record=encrypted_record
+        ), remainder
+
     class Config:
         arbitrary_types_allowed = True
