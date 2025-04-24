@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Type, TypeVar
@@ -29,7 +30,10 @@ class HandshakeMessage(BaseModel, ABC):
     msg_type: HandshakeType
 
     def to_bytes(self) -> bytes:
-        ...
+        body = self._body_bytes()
+        length_bytes = struct.pack('!I', len(body))[1:]
+        headers = bytes([self.msg_type.value]) + length_bytes
+        return headers + body
 
     @abstractmethod
     def _body_bytes(self) -> bytes:
