@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import struct
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from enum import Enum
 from typing import Type, TypeVar
 
@@ -28,6 +29,7 @@ T = TypeVar('T', bound="HandshakeMessage")
 
 class HandshakeMessage(BaseModel, ABC):
     msg_type: HandshakeType
+    _subclass_registry: dict[HandshakeType, Type[HandshakeMessage]] = defaultdict(lambda: None)
 
     def to_bytes(self) -> bytes:
         body = self._body_bytes()
@@ -41,7 +43,19 @@ class HandshakeMessage(BaseModel, ABC):
 
     @classmethod
     def from_bytes(cls, data: bytes) -> tuple[HandshakeMessage, bytes]:
-        ...
+        parsed_message_type = HandshakeType(data[0])
+        parsed_message_length = struct.unpack(
+            '!I',
+            b"\x00" # Add 0x00 because in the format used to decode ('I' = unsigned int) the data must be 4-bytes long
+            + data[1:4])[0]
+        payload = data[4:4+parsed_message_length]
+        remainder = data[4+parsed_message_length:]
+
+        if (specific_subclass := cls._subclass_registry[parsed_message_type]) is None:
+            raise ValueError(f"Unknown handshake message type: {parsed_message_type}")
+
+        return specific_subclass.parse(payload), remainder
+
 
     @classmethod
     @abstractmethod
