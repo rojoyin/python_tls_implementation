@@ -43,11 +43,21 @@ class HandshakeMessage(BaseModel, ABC):
 
     @classmethod
     def from_bytes(cls, data: bytes) -> tuple[HandshakeMessage, bytes]:
-        parsed_message_type = HandshakeType(data[0])
+        if len(data) < 5:
+            raise ValueError("Data too short for handshake message header")
+        try:
+            parsed_message_type = HandshakeType(data[0])
+        except ValueError:
+            raise ValueError(f"Invalid handshake message type: {data[0]}")
+
         parsed_message_length = struct.unpack(
             '!I',
             b"\x00" # Add 0x00 because in the format used to decode ('I' = unsigned int) the data must be 4-bytes long
             + data[1:4])[0]
+
+        if len(data) < 5+parsed_message_length:
+            raise ValueError(f"Incomplete handshake message: expected {parsed_message_length} bytes, got {len(data) - 5}")
+
         payload = data[4:4+parsed_message_length]
         remainder = data[4+parsed_message_length:]
 
