@@ -71,3 +71,26 @@ class HandshakeMessage(BaseModel, ABC):
     @abstractmethod
     def parse(cls: Type[T], body: bytes) -> T:
         ...
+
+
+
+class HandshakeMessageRegistry:
+    _message_registry: dict[HandshakeType, Type[HandshakeMessage]] = {}
+
+    @classmethod
+    def register_class(cls, handler_class: Type[HandshakeMessage], message_type: HandshakeType | None = None) -> None:
+        if not issubclass(handler_class, HandshakeMessage):
+            raise TypeError(f"Handler must be a subclass of HandshakeMessage, got {handler_class}")
+        if hasattr(handler_class, "msg_type"):
+            cls._message_registry[handler_class.msg_type] = handler_class
+        else:
+            if not message_type:
+                raise ValueError("Message type was not provided")
+            cls._message_registry[handler_class.msg_type] = handler_class
+
+    @classmethod
+    def get_handler(cls, message_type: HandshakeType) -> Type[HandshakeMessage]:
+        handler = cls._message_registry.get(message_type)
+        if handler is None:
+            raise ValueError(f"No handler registered for message type: {message_type}")
+        return handler
