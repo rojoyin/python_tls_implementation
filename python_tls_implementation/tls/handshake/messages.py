@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import struct
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from enum import Enum
 from typing import Type, TypeVar
 
@@ -29,7 +28,11 @@ T = TypeVar('T', bound="HandshakeMessage")
 
 class HandshakeMessage(BaseModel, ABC):
     msg_type: HandshakeType
-    _subclass_registry: dict[HandshakeType, Type[HandshakeMessage]] = defaultdict(lambda: None)
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        HandshakeMessageRegistry.register_class(cls)
+
 
     def to_bytes(self) -> bytes:
         body = self._body_bytes()
@@ -60,18 +63,16 @@ class HandshakeMessage(BaseModel, ABC):
 
         payload = data[4:4+parsed_message_length]
         remainder = data[4+parsed_message_length:]
-
-        if (specific_subclass := cls._subclass_registry[parsed_message_type]) is None:
-            raise ValueError(f"Unknown handshake message type: {parsed_message_type}")
-
+        specific_subclass = HandshakeMessageRegistry.get_handler(parsed_message_type)
         return specific_subclass.parse(payload), remainder
-
 
     @classmethod
     @abstractmethod
     def parse(cls: Type[T], body: bytes) -> T:
         ...
 
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class HandshakeMessageRegistry:
@@ -86,7 +87,7 @@ class HandshakeMessageRegistry:
         else:
             if not message_type:
                 raise ValueError("Message type was not provided")
-            cls._message_registry[handler_class.msg_type] = handler_class
+            cls._message_registry[message_type] = handler_class
 
     @classmethod
     def get_handler(cls, message_type: HandshakeType) -> Type[HandshakeMessage]:
