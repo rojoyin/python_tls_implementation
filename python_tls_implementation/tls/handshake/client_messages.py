@@ -18,7 +18,20 @@ class ClientHello(HandshakeMessage):
         self.msg_type = HandshakeType.client_hello
 
     def _body_bytes(self) -> bytes:
-        pass
+        version_bytes = self.legacy_version.value.to_bytes(2, byteorder='big')
+        session_id_bytes = bytes([len(self.legacy_session_id)]) + self.legacy_session_id
+        cipher_suites_bytes = b''.join(cs.to_bytes(2, byteorder='big') for cs in self.cipher_suites)
+        cipher_suites_bytes = len(cipher_suites_bytes).to_bytes(2, byteorder='big') + cipher_suites_bytes
+        compression_bytes = bytes([len(self.legacy_compression_methods)]) + bytes(self.legacy_compression_methods)
+
+        extensions_bytes = b''
+        if self.extensions:
+            all_ext_bytes = b''.join(ext.to_bytes() for ext in self.extensions)
+            extensions_bytes = len(all_ext_bytes).to_bytes(2, byteorder='big') + all_ext_bytes
+        else:
+            extensions_bytes = (0).to_bytes(2, byteorder='big')
+
+        return version_bytes + self.random_value + session_id_bytes + cipher_suites_bytes + compression_bytes + extensions_bytes
 
     @classmethod
     def parse(cls: Type[T], body: bytes) -> T:
