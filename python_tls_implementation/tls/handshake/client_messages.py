@@ -35,4 +35,57 @@ class ClientHello(HandshakeMessage):
 
     @classmethod
     def parse(cls: Type[T], body: bytes) -> T:
-        pass
+        if len(body) < 38:
+            raise ValueError("ClientHello message too short")
+
+        offset = 0
+        legacy_version = ProtocolVersion(int.from_bytes(body[offset:offset + 2], byteorder='big'))
+        offset += 2
+        random_value = body[offset:offset + 32]
+        offset += 32
+        session_id_len = body[offset]
+        offset += 1
+        legacy_session_id = body[offset:offset + session_id_len]
+        offset += session_id_len
+        cipher_suites_len = int.from_bytes(body[offset:offset + 2], byteorder='big')
+        offset += 2
+
+        if cipher_suites_len % 2 != 0:
+            raise ValueError("Cipher suites length must be even")
+
+        cipher_suites = []
+        for i in range(0, cipher_suites_len, 2):
+            if offset + i + 1 >= len(body):
+                raise ValueError("Message truncated in cipher suites")
+            cipher_suite = int.from_bytes(body[offset:offset + 2], byteorder='big')
+            cipher_suites.append(cipher_suite)
+
+        offset += cipher_suites_len
+        compression_len = body[offset]
+        offset += 1
+        compression_methods = list(body[offset:offset + compression_len])
+        offset += compression_len
+
+        extensions = []
+        if offset < len(body):
+            extensions_len = int.from_bytes(body[offset:offset + 2], byteorder='big')
+            offset += 2
+
+            extensions_end = offset + extensions_len
+            while offset < extensions_end:
+                from python_tls_implementation.tls.handshake.extensions.base import ExtensionRegistry
+                extension, remaining = ExtensionRegistry.parse(body[offset:extensions_end])
+                if extension is None:
+                    break
+                extensions.append(extension)
+                offset = extensions_end - len(remaining)
+
+        client_hello = cls()
+        client_hello.legacy_version = legacy_version
+        client_hello.random_value = random_value
+        client_hello.legacy_session_id = legacy_session_id
+        client_hello.cipher_suites = cipher_suites
+        client_hello.legacy_compression_methods = compression_methods
+        client_hello.extensions = extensions
+
+        return client_hello
